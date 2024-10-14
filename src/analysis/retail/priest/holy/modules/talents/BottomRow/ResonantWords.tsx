@@ -50,6 +50,7 @@ class ResonantWords extends Analyzer {
   protected eolAttrib!: EOLAttrib;
   eolContrib = 0;
 
+  usedResonantWords = 0;
   healingDoneFromTalent = 0;
   overhealingDoneFromTalent = 0;
   healingMultiplierWhenActive = 0;
@@ -108,12 +109,10 @@ class ResonantWords extends Analyzer {
     if (!this.selectedCombatant.hasBuff(SPELLS.RESONANT_WORDS_TALENT_BUFF.id)) {
       return;
     }
-
     const closest: ConsumeInfo = [...this.consumes]
       .reverse()
       .find((e) => e.timestamp <= event.timestamp)!;
     closest.consumed = event.ability.guid;
-
     switch (closest.consumed) {
       case SPELLS.FLASH_HEAL.id:
         if (this.selectedCombatant.hasBuff(SPELLS.SURGE_OF_LIGHT_BUFF.id)) {
@@ -137,8 +136,7 @@ class ResonantWords extends Analyzer {
 
   onHolyWordCast(event: CastEvent) {
     const lastHolyWord = this.consumes[this.consumes.length - 1];
-    const wasLastConsumed = lastHolyWord ? lastHolyWord.consumed !== undefined : false;
-    if (!wasLastConsumed && lastHolyWord) {
+    if (this.selectedCombatant.hasBuff(SPELLS.RESONANT_WORDS_TALENT_BUFF.id) && lastHolyWord) {
       //if last resonant words was wasted and exists.
       lastHolyWord.wasted = true;
     }
