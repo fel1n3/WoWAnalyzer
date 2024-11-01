@@ -314,11 +314,6 @@ const spells = {
     name: 'Halo',
     icon: 'ability_priest_halo_shadow',
   },
-  SHADOW_HALO_CAST: {
-    id: 120644,
-    name: 'Halo',
-    icon: 'ability_priest_halo_shadow',
-  },
   SHADOW_COVENANT_BUFF: {
     id: 322105,
     name: 'Shadow Covenant',
