@@ -22,7 +22,7 @@ export const ATONEMENT_DAMAGE_SOURCES = {
   [SPELLS.MAGIC_MELEE.id]: true, // Shadow Fiend Melee
   [SPELLS.LIGHTSPAWN_MELEE.id]: true, // Lightspawn Melee
   [SPELLS.SMITE.id]: true,
-  [SPELLS.SHADOW_SMITE.id]: true,
+  [SPELLS.VOID_BLAST_DAMAGE_DISC.id]: true,
   [SPELLS.PENANCE.id]: true,
   [SPELLS.HALO_DAMAGE.id]: true,
   [SPELLS.SHADOW_WORD_PAIN.id]: true,
@@ -37,6 +37,9 @@ export const ATONEMENT_DAMAGE_SOURCES = {
   [SPELLS.EXPIATION_DAMAGE.id]: true,
   [TALENTS_PRIEST.SHADOW_WORD_DEATH_TALENT.id]: true,
   [SPELLS.INESCAPABLE_TORMENT_TALENT_DAMAGE.id]: true,
+  [SPELLS.SHADOW_HALO_DAMAGE.id]: true,
+  [SPELLS.DARK_REPRIMAND_CAST.id]: true,
+  [SPELLS.SHADOW_HALO_CAST.id]: true,
 };
 
 export const ATONEMENT_DAMAGE_IDS = [
