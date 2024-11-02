@@ -1,7 +1,14 @@
 import SPELLS from 'common/SPELLS';
 import { TALENTS_PRIEST } from 'common/TALENTS';
-import Analyzer, { SELECTED_PLAYER } from 'parser/core/Analyzer';
-import Events, { CastEvent } from 'parser/core/Events';
+import { SELECTED_PLAYER } from 'parser/core/Analyzer';
+import Events, {
+  BeginCastEvent,
+  BeginChannelEvent,
+  CastEvent,
+  EndChannelEvent,
+  FightEndEvent,
+  GlobalCooldownEvent,
+} from 'parser/core/Events';
 import { Options } from 'parser/core/Module';
 import EventHistory from 'parser/shared/modules/EventHistory';
 import StatTracker from 'parser/shared/modules/StatTracker';
@@ -9,16 +16,22 @@ import GlobalCooldown from '../core/GlobalCooldown';
 import Atonement from '../spells/Atonement';
 import Evangelism from '../spells/Evangelism';
 import Haste from 'parser/shared/modules/Haste';
-import { ControlledExpandable, Icon, SpellLink, Tooltip } from 'interface';
+import { SpellLink } from 'interface';
 
 import './EvangelismAnalysis.scss';
-import { useState } from 'react';
-import { PassFailCheckmark } from 'interface/guide';
-import { ATONEMENT_DAMAGE_SOURCES } from '../../constants';
-import PassFailBar from 'interface/guide/components/PassFailBar';
-import { abilityToSpell } from 'common/abilityToSpell';
+import { ReactNode } from 'react';
 import { Talent } from 'common/TALENTS/types';
+import MajorCooldown, { CooldownTrigger } from 'parser/core/MajorCooldowns/MajorCooldown';
+import { ChecklistUsageInfo, SpellUse } from 'parser/core/SpellUsage/core';
+import EmbeddedTimelineContainer, {
+  SpellTimeline,
+} from 'interface/report/Results/Timeline/EmbeddedTimeline';
+import Casts from 'interface/report/Results/Timeline/Casts';
+import { QualitativePerformance } from 'parser/ui/QualitativePerformance';
+import CooldownUsage from 'parser/core/MajorCooldowns/CooldownUsage';
+import CASTS_THAT_ARENT_CASTS from 'parser/core/CASTS_THAT_ARENT_CASTS';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ALLOWED_PRE_RAMP = [
   TALENTS_PRIEST.POWER_WORD_RADIANCE_TALENT.id,
   SPELLS.POWER_WORD_SHIELD.id,
@@ -31,7 +44,7 @@ const ALLOWED_PRE_RAMP = [
   TALENTS_PRIEST.PURGE_THE_WICKED_TALENT.id,
 ];
 
-const PERMITTED_RAMP_STARTERS = [
+export const PERMITTED_RAMP_STARTERS = [
   SPELLS.SHADOW_WORD_PAIN.id,
   TALENTS_PRIEST.PURGE_THE_WICKED_TALENT.id,
   TALENTS_PRIEST.RENEW_TALENT.id,
@@ -40,15 +53,26 @@ const PERMITTED_RAMP_STARTERS = [
   SPELLS.POWER_WORD_SHIELD.id,
 ];
 
-interface Ramp {
-  timestamp: number;
-  rampHistory: CastEvent[];
-  badCastIndexes?: number[];
-  damageRotation: CastEvent[];
+interface RampTimeline {
+  start: number;
+  end?: number | null;
+  rampEvents: (
+    | CastEvent
+    | BeginCastEvent
+    | GlobalCooldownEvent
+    | BeginChannelEvent
+    | EndChannelEvent
+  )[];
+  damageEvents: CastEvent[];
 }
 
-abstract class RampAnalysis extends Analyzer {
+interface RampCooldownTimeline extends CooldownTrigger<CastEvent> {
+  timeline: RampTimeline;
+}
+
+abstract class RampAnalysis extends MajorCooldown<RampCooldownTimeline> {
   static dependencies = {
+    ...MajorCooldown.dependencies,
     atonementModule: Atonement,
     eventHistory: EventHistory,
     globalCooldown: GlobalCooldown,
@@ -66,161 +90,113 @@ abstract class RampAnalysis extends Analyzer {
 
   cooldown: Talent;
 
-  ramps: Ramp[] = [];
+  protected currentRamp: RampCooldownTimeline | null = null;
 
   protected constructor(cooldown: Talent, options: Options) {
-    super(options);
+    super({ spell: cooldown }, options);
     this.cooldown = cooldown;
 
     this.addEventListener(Events.cast.by(SELECTED_PLAYER).spell(cooldown), this.onCooldownCast);
-
-    this.addEventListener(Events.cast.by(SELECTED_PLAYER), this.buildSequence);
-    this.addEventListener(Events.cast.by(SELECTED_PLAYER), this.fillDpsRotation);
+    this.addEventListener(Events.cast.by(SELECTED_PLAYER), this.onCast);
+    this.addEventListener(Events.fightend, this.onRampEnd);
   }
 
-  onCooldownCast(event: CastEvent): void {}
-
-  abstract buildSequence(event: CastEvent): void;
-  abstract fillDpsRotation(event: CastEvent): void;
-
-  analyzeSequence(ramp: CastEvent[]) {
-    // check that only buttons to press pre evangelism were used
-    this.currentRamp.badCastIndexes = this.checkForWrongCasts(ramp);
-    // TODO: check for downtime
-  }
-
-  // figures out where the "ramp" actually starts
-  cutSequence(ramp: CastEvent[]) {
-    while (ramp.length > 0 && !PERMITTED_RAMP_STARTERS.includes(ramp[0].ability.guid)) {
-      ramp.shift();
+  onRampEnd(event: CastEvent | FightEndEvent) {
+    if (this.currentRamp) {
+      this.currentRamp.timeline.end = event.timestamp;
+      this.recordCooldown(this.currentRamp);
+      this.currentRamp = null;
     }
-    this.analyzeSequence(ramp);
   }
 
-  checkForWrongCasts(ramp: CastEvent[]) {
-    return ramp
-      .map((cast, index) => {
-        if (!ALLOWED_PRE_RAMP.includes(cast.ability.guid)) {
-          return index;
-        }
-        return null;
-      })
-      .filter(Number) as number[];
+  get getRamp() {
+    const filters = [
+      Events.GlobalCooldown.by(SELECTED_PLAYER),
+      Events.cast.by(SELECTED_PLAYER),
+      Events.begincast.by(SELECTED_PLAYER),
+      Events.BeginChannel.by(SELECTED_PLAYER),
+      Events.EndChannel.by(SELECTED_PLAYER),
+    ];
+    const rampHistory = filters
+      .flatMap((filter) => this.eventHistory.last(30, 17000, filter))
+      .filter((cast) => !CASTS_THAT_ARENT_CASTS.includes(cast.ability.guid))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    return rampHistory;
   }
 
-  get currentRamp() {
-    return this.ramps.at(-1)!;
+  abstract onCooldownCast(event: CastEvent): void;
+  abstract onCast(event: CastEvent): void;
+
+  description(): ReactNode {
+    return (
+      <>
+        <p>
+          <strong>
+            <SpellLink spell={this.cooldown} />
+          </strong>{' '}
+        </p>
+        is saur good TODO.
+      </>
+    );
+  }
+
+  explainPerformance(cast: RampCooldownTimeline): SpellUse {
+    const checklistItems: ChecklistUsageInfo[] = [this.explainSchismPerformance(cast)];
+
+    /*cast.timeline.rampEvents.forEach(cast => {
+      if( cast.type === EventType.Cast) highlightInefficientCast(cast, "fart");
+    });*/
+
+    console.log(cast);
+
+    const timeline = (
+      <div
+        style={{
+          overflowX: 'scroll',
+        }}
+      >
+        <EmbeddedTimelineContainer
+          secondWidth={60}
+          secondsShown={(cast.timeline.rampEvents.at(-1)!.timestamp - cast.timeline.start) / 1000}
+        >
+          <SpellTimeline>
+            <Casts start={cast.timeline.start} secondWidth={60} events={cast.timeline.rampEvents} />
+          </SpellTimeline>
+        </EmbeddedTimelineContainer>
+      </div>
+    );
+
+    return {
+      event: cast.event,
+      checklistItems: checklistItems,
+      performance: QualitativePerformance.Good,
+      performanceExplanation: 'fart',
+      extraDetails: timeline,
+    };
+  }
+
+  private explainSchismPerformance(cast: RampCooldownTimeline) {
+    const combinedEvents = [...cast.timeline.damageEvents, ...cast.timeline.rampEvents];
+    const mindBlast = combinedEvents.find((event) => event.ability.guid === SPELLS.MIND_BLAST.id);
+    const shadowPet = combinedEvents.find(
+      (event) => event.ability.guid === TALENTS_PRIEST.VOIDWRAITH_TALENT.id,
+    );
+    console.log(shadowPet);
+    return {
+      check: 'schism-casts',
+      timestamp: cast.event.timestamp,
+      performance: mindBlast ? QualitativePerformance.Perfect : QualitativePerformance.Fail,
+      summary: <> FART TODO: </>,
+      details: <div>you cast ajdkgja ramp TODO. </div>,
+    };
   }
 
   get guideCastBreakdown() {
-    return this.ramps.map((ramp, ix) => {
-      const [isExpanded, setIsExpanded] = useState(false);
-
-      const header = (
-        <>
-          @ {this.owner.formatTimestamp(ramp.timestamp)} <SpellLink spell={this.cooldown} />
-        </>
-      );
-
-      const badCastTooltip = (index: number) => (
-        <>
-          Casting a spell like <SpellLink spell={abilityToSpell(ramp.rampHistory[index].ability)} />{' '}
-          is not recommended while ramping. Make sure to mostly focus on applying{' '}
-          <SpellLink spell={TALENTS_PRIEST.ATONEMENT_TALENT} /> when ramping.
-        </>
-      );
-
-      const spellSequence = ramp.rampHistory.map((cast, index) => {
-        const tooltipContent = (
-          <>{ramp.badCastIndexes?.includes(index) ? badCastTooltip(index) : 'No issues found'}</>
-        );
-        const iconClass = `evang__icon ${ramp.badCastIndexes?.includes(index) ? '--fail' : ''}`;
-        return (
-          <Tooltip content={tooltipContent} key={index} direction="up">
-            <div className="" data-place="top">
-              <Icon icon={cast.ability.abilityIcon} className={iconClass} />
-            </div>
-          </Tooltip>
-        );
-      });
-
-      const badCastOverview =
-        ramp.badCastIndexes?.length && ramp.badCastIndexes?.length > 0 ? (
-          <>
-            <div>
-              You cast {ramp.badCastIndexes?.length || 0} spells which are not optimally used while
-              ramping. Highlight over the red boxes to see which spells these were.
-            </div>
-          </>
-        ) : null;
-
-      const problemOverview = (
-        <>
-          <div>{badCastOverview}</div>
-        </>
-      );
-
-      const noProblems = (
-        <>
-          <div>
-            No major issues detected, however if you think there should be, please let us know!
-          </div>
-        </>
-      );
-
-      const usedSchism =
-        ramp.damageRotation.filter((cast) => cast.ability.guid === SPELLS.MIND_BLAST.id).length > 0;
-      const earlySchism =
-        usedSchism &&
-        ramp.damageRotation.findIndex((cast) => (cast.ability.guid = SPELLS.MIND_BLAST.id)) < 3;
-      const atonementTransferred = ramp.damageRotation.filter((cast) => {
-        return ATONEMENT_DAMAGE_SOURCES[cast.ability.guid];
-      }).length;
-
-      const damageAnalysis = (
-        <>
-          Damage rotation breakdown:
-          <div>
-            Used <SpellLink spell={TALENTS_PRIEST.SCHISM_TALENT} />{' '}
-            <PassFailCheckmark pass={usedSchism} />
-          </div>
-          <div>
-            Used <SpellLink spell={TALENTS_PRIEST.SCHISM_TALENT} /> early{' '}
-            <PassFailCheckmark pass={earlySchism} />
-          </div>
-          <div>
-            Used {atonementTransferred} / {ramp.damageRotation.length} damage spells to transfer{' '}
-            <SpellLink spell={TALENTS_PRIEST.ATONEMENT_TALENT} />: <br />
-            <PassFailBar
-              pass={atonementTransferred}
-              total={ramp.damageRotation.length}
-              passTooltip="The number of spells cast which transfer atonement."
-              failTooltip="The number of spells cast which do not transfer atonement."
-            />
-          </div>
-        </>
-      );
-
-      return (
-        <ControlledExpandable
-          header={header}
-          element="section"
-          expanded={isExpanded}
-          inverseExpanded={() => setIsExpanded(!isExpanded)}
-          key={ix}
-        >
-          <div className="evang__container">
-            <div className="evang__applicator-half">
-              <div className="evang__cast-list">{spellSequence}</div>
-              {ramp.badCastIndexes?.length && ramp.badCastIndexes?.length > 0
-                ? problemOverview
-                : noProblems}
-            </div>
-            <div>{damageAnalysis}</div>
-          </div>
-        </ControlledExpandable>
-      );
-    });
+    return (
+      <>
+        <CooldownUsage analyzer={this} hidePotentialMissedCasts title={this.cooldown.name} />
+      </>
+    );
   }
 }
 

@@ -8,80 +8,57 @@ class RaptureAnalysis extends RampAnalysis {
     ...RampAnalysis.dependencies,
   };
 
-  finishedRamping = false;
-  radianceCounter = 0;
+  private _radianceCount: number = 0;
+  private _finishedRamping: boolean = false;
 
   constructor(options: Options) {
     super(TALENTS_PRIEST.RAPTURE_TALENT, options);
   }
 
-  // groups all the casts just before you cast evangelism
-  onCooldownCast(event: CastEvent) {
-    this.ramps.push({ timestamp: event.timestamp, rampHistory: [], damageRotation: [] });
-    this.finishedRamping = false;
-    this.radianceCounter = 0;
+  //on rapture cast (start of ramp)
+  onCooldownCast(event: CastEvent): void {
+    this.currentRamp ??= {
+      event: event,
+      timeline: {
+        start: event.timestamp,
+        rampEvents: [],
+        damageEvents: [],
+      },
+    };
+    this._radianceCount = 0;
+    this._finishedRamping = false;
   }
 
-  // Need to build to the end of the ramp - be it the end of the rapture buff + two radiance casts, or if the buff is ended early by 2 radiances.
-  // If the sequence is too short, the damage rotation at the end will be cut by cleanupRamp().
-
-  buildSequence(event: CastEvent) {
-    if (this.ramps.length < 1) {
-      return;
-    }
-    if (!this.globalCooldown.isOnGlobalCooldown(event.ability.guid)) {
+  onCast(event: CastEvent): void {
+    if (!this.currentRamp) {
       return;
     }
 
-    if (
-      event.ability.guid === TALENTS_PRIEST.POWER_WORD_RADIANCE_TALENT.id &&
-      !this.finishedRamping
-    ) {
-      this.currentRamp.rampHistory.push(event);
-      this.radianceCounter += 1;
-      return;
-    }
+    this.constructRamp(event);
 
-    if (this.radianceCounter > 1) {
-      this.finishedRamping = true;
-      this.cleanupRamp();
-      return;
-    }
-
-    if (this.currentRamp.timestamp + 12000 > event.timestamp) {
-      this.currentRamp.rampHistory.push(event);
-    } else {
-      this.finishedRamping = true;
-      this.cleanupRamp();
+    if (this._finishedRamping) {
+      if (event.timestamp < this.currentRamp.timeline.rampEvents.at(-1)!.timestamp + 10000) {
+        this.currentRamp.timeline.damageEvents.push(event);
+      } else {
+        this.onRampEnd(event);
+      }
     }
   }
 
-  // gets your spells cast 10s after pressing evangelism.
-  fillDpsRotation(event: CastEvent) {
-    if (this.ramps.length < 1 || !this.finishedRamping) {
-      return;
-    }
-
-    const lastRampCast = this.currentRamp.rampHistory[this.currentRamp.rampHistory.length - 1];
-    if (event.timestamp < lastRampCast.timestamp + 10000) {
-      this.currentRamp.damageRotation.push(event);
-    }
-  }
-
-  // edits the ramp history array to only include the applicators(or bad damage casts if there are damage casts in between)
-  cleanupRamp() {
-    let radCasted = false;
-    this.currentRamp.rampHistory.forEach((rampCast, ix) => {
-      if (rampCast.ability.guid === TALENTS_PRIEST.POWER_WORD_RADIANCE_TALENT.id) {
-        radCasted = true;
+  private constructRamp(event: CastEvent) {
+    //everything after rapture >> find point before 2x radiance >> rampevents
+    if (event.ability.guid === TALENTS_PRIEST.POWER_WORD_RADIANCE_TALENT.id) {
+      if (this._radianceCount < 1) {
+        this._radianceCount += 1;
         return;
       }
-      if (radCasted && rampCast.ability.guid !== TALENTS_PRIEST.POWER_WORD_RADIANCE_TALENT.id) {
-        this.currentRamp.rampHistory.splice(ix);
-      }
-    });
+      console.log(event);
+      const rampHistory = this.getRamp;
+      rampHistory.push(event);
 
-    this.cutSequence(this.currentRamp.rampHistory);
+      this.currentRamp!.timeline.rampEvents = rampHistory;
+      this._finishedRamping = true;
+    }
   }
 }
 
