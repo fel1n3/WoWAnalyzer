@@ -6,6 +6,8 @@ import Events, {
   BeginChannelEvent,
   CastEvent,
   EndChannelEvent,
+  Event,
+  EventType,
   FightEndEvent,
   GlobalCooldownEvent,
 } from 'parser/core/Events';
@@ -16,8 +18,7 @@ import GlobalCooldown from '../core/GlobalCooldown';
 import Atonement from '../spells/Atonement';
 import Evangelism from '../spells/Evangelism';
 import Haste from 'parser/shared/modules/Haste';
-import { SpellLink } from 'interface';
-
+import { Highlight } from 'interface/Highlight';
 import './EvangelismAnalysis.scss';
 import { ReactNode } from 'react';
 import { Talent } from 'common/TALENTS/types';
@@ -29,20 +30,8 @@ import EmbeddedTimelineContainer, {
 import Casts from 'interface/report/Results/Timeline/Casts';
 import { QualitativePerformance } from 'parser/ui/QualitativePerformance';
 import CooldownUsage from 'parser/core/MajorCooldowns/CooldownUsage';
-import CASTS_THAT_ARENT_CASTS from 'parser/core/CASTS_THAT_ARENT_CASTS';
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const ALLOWED_PRE_RAMP = [
-  TALENTS_PRIEST.POWER_WORD_RADIANCE_TALENT.id,
-  SPELLS.POWER_WORD_SHIELD.id,
-  TALENTS_PRIEST.RENEW_TALENT.id,
-  SPELLS.FLASH_HEAL.id,
-  TALENTS_PRIEST.RAPTURE_TALENT.id,
-  TALENTS_PRIEST.SHADOWFIEND_TALENT.id,
-  TALENTS_PRIEST.EVANGELISM_TALENT.id,
-  SPELLS.SHADOW_WORD_PAIN.id,
-  TALENTS_PRIEST.PURGE_THE_WICKED_TALENT.id,
-];
+import { BadColor, OkColor } from 'interface/guide';
+import { SpellLink, TooltipElement } from 'interface';
 
 export const PERMITTED_RAMP_STARTERS = [
   SPELLS.SHADOW_WORD_PAIN.id,
@@ -56,17 +45,19 @@ export const PERMITTED_RAMP_STARTERS = [
 interface RampTimeline {
   start: number;
   end?: number | null;
-  rampEvents: (
-    | CastEvent
-    | BeginCastEvent
-    | GlobalCooldownEvent
-    | BeginChannelEvent
-    | EndChannelEvent
-  )[];
+  rampEvents: TimelineEvent[];
   damageEvents: CastEvent[];
 }
 
+type TimelineEvent =
+  | CastEvent
+  | BeginCastEvent
+  | GlobalCooldownEvent
+  | BeginChannelEvent
+  | EndChannelEvent;
+
 interface RampCooldownTimeline extends CooldownTrigger<CastEvent> {
+  atonements: number;
   timeline: RampTimeline;
 }
 
@@ -101,6 +92,28 @@ abstract class RampAnalysis extends MajorCooldown<RampCooldownTimeline> {
     this.addEventListener(Events.fightend, this.onRampEnd);
   }
 
+  onCooldownCast(event: CastEvent) {
+    const rampHistory = this.getRamp();
+    rampHistory.push(event);
+
+    while (
+      rampHistory.length > 0 &&
+      !PERMITTED_RAMP_STARTERS.includes(rampHistory[0].ability.guid)
+    ) {
+      rampHistory.shift();
+    }
+
+    this.currentRamp ??= {
+      event: event,
+      atonements: this.atonementModule.numAtonementsActive,
+      timeline: {
+        start: rampHistory[0].timestamp,
+        rampEvents: rampHistory,
+        damageEvents: [],
+      },
+    };
+  }
+
   onRampEnd(event: CastEvent | FightEndEvent) {
     if (this.currentRamp) {
       this.currentRamp.timeline.end = event.timestamp;
@@ -109,50 +122,50 @@ abstract class RampAnalysis extends MajorCooldown<RampCooldownTimeline> {
     }
   }
 
-  get getRamp() {
-    const filters = [
-      Events.GlobalCooldown.by(SELECTED_PLAYER),
-      Events.cast.by(SELECTED_PLAYER),
-      Events.begincast.by(SELECTED_PLAYER),
-      Events.BeginChannel.by(SELECTED_PLAYER),
-      Events.EndChannel.by(SELECTED_PLAYER),
+  private timelineFilter(event: Event<EventType>, maxTime: number): boolean {
+    const relevantEventTypes = [
+      EventType.Cast,
+      EventType.GlobalCooldown,
+      EventType.BeginCast,
+      EventType.BeginChannel,
+      EventType.EndChannel,
     ];
-    const rampHistory = filters
-      .flatMap((filter) => this.eventHistory.last(30, 17000, filter))
-      .filter((cast) => !CASTS_THAT_ARENT_CASTS.includes(cast.ability.guid))
-      .sort((a, b) => a.timestamp - b.timestamp);
-    return rampHistory;
-  }
 
-  abstract onCooldownCast(event: CastEvent): void;
-  abstract onCast(event: CastEvent): void;
-
-  description(): ReactNode {
-    return (
-      <>
-        <p>
-          <strong>
-            <SpellLink spell={this.cooldown} />
-          </strong>{' '}
-        </p>
-        is saur good TODO.
-      </>
+    const isRelevantType = relevantEventTypes.includes(event.type);
+    const isByPlayer = this.owner.byPlayer(event);
+    const isWithinTime = Boolean(
+      event.timestamp && event.timestamp >= this.owner.currentTimestamp - maxTime,
     );
+
+    return isRelevantType && isByPlayer && isWithinTime;
   }
+
+  getRamp(maxTime = 17000): TimelineEvent[] {
+    let rampHistory = this.owner.eventHistory.filter((event) =>
+      this.timelineFilter(event, maxTime),
+    );
+
+    if (30 < rampHistory.length) {
+      rampHistory = rampHistory.slice(-30);
+    }
+
+    return rampHistory as TimelineEvent[];
+  }
+
+  abstract onCast(event: CastEvent): void;
 
   explainPerformance(cast: RampCooldownTimeline): SpellUse {
     const checklistItems: ChecklistUsageInfo[] = [this.explainSchismPerformance(cast)];
 
-    /*cast.timeline.rampEvents.forEach(cast => {
-      if( cast.type === EventType.Cast) highlightInefficientCast(cast, "fart");
-    });*/
+    //const badCastTooltip = (ability: Ability) =>
+    //  `Casting a spell like ${ability.name} is not recommended while ramping. Make sure to mostly focus on applying ${TALENTS_PRIEST.ATONEMENT_TALENT.name} when ramping.`;
 
     console.log(cast);
 
     const timeline = (
       <div
         style={{
-          overflowX: 'scroll',
+          overflowX: 'auto',
         }}
       >
         <EmbeddedTimelineContainer
@@ -178,10 +191,9 @@ abstract class RampAnalysis extends MajorCooldown<RampCooldownTimeline> {
   private explainSchismPerformance(cast: RampCooldownTimeline) {
     const combinedEvents = [...cast.timeline.damageEvents, ...cast.timeline.rampEvents];
     const mindBlast = combinedEvents.find((event) => event.ability.guid === SPELLS.MIND_BLAST.id);
-    const shadowPet = combinedEvents.find(
+    /*const shadowPet = combinedEvents.find(
       (event) => event.ability.guid === TALENTS_PRIEST.VOIDWRAITH_TALENT.id,
-    );
-    console.log(shadowPet);
+    );*/
     return {
       check: 'schism-casts',
       timestamp: cast.event.timestamp,
@@ -191,10 +203,40 @@ abstract class RampAnalysis extends MajorCooldown<RampCooldownTimeline> {
     };
   }
 
+  description(): ReactNode {
+    return (
+      <>
+        Apply <strong>7-8</strong> atonements then press <SpellLink spell={this.cooldown} />.
+      </>
+    );
+  }
+
   get guideCastBreakdown() {
     return (
       <>
-        <CooldownUsage analyzer={this} hidePotentialMissedCasts title={this.cooldown.name} />
+        <CooldownUsage
+          analyzer={this}
+          title={this.cooldown.name}
+          hidePotentialMissedCasts
+          castBreakdownSmallText={
+            <>
+              - These boxes represent each ramp, colored by how good the usage was. Missed casts are
+              also shown in{' '}
+              <TooltipElement content="Used for casts that may have been skipped in order to save for crucial moments.">
+                <Highlight color={OkColor} textColor="black">
+                  yellow
+                </Highlight>
+              </TooltipElement>{' '}
+              or{' '}
+              <TooltipElement content="Used for casts that could have been used without impacting your other usage.">
+                <Highlight color={BadColor} textColor="white">
+                  red
+                </Highlight>
+              </TooltipElement>
+              .
+            </>
+          }
+        />
       </>
     );
   }

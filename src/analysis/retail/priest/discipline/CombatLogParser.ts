@@ -70,6 +70,7 @@ import Amirdrassil4p from './modules/spells/Amirdrassil4p';
 import TrainOfThought from './modules/spells/TrainOfThought';
 import VoidSummoner from './modules/spells/VoidSummoner';
 import ShadowCovenant from './modules/spells/ShadowCovenant/ShadowCovenant';
+import UltimatePenitenceAnalysis from 'analysis/retail/priest/discipline/modules/guide/UltimatePenitenceAnalysis';
 
 class CombatLogParser extends CoreCombatLogParser {
   static specModules = {
@@ -149,6 +150,7 @@ class CombatLogParser extends CoreCombatLogParser {
     voidSummoner: VoidSummoner,
     translucentImage: TranslucentImage,
     shadowCovenant: ShadowCovenant,
+    ultimatePenitenceAnalyis: UltimatePenitenceAnalysis,
 
     // Items:
     radiantProvidence: RadiantProvidence,

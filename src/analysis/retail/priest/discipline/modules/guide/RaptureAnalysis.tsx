@@ -2,6 +2,9 @@ import { TALENTS_PRIEST } from 'common/TALENTS';
 import { CastEvent } from 'parser/core/Events';
 import { Options } from 'parser/core/Module';
 import RampAnalysis from 'analysis/retail/priest/discipline/modules/guide/RampAnalysis';
+import { ReactNode } from 'react';
+import { SpellLink } from 'interface';
+import SPELLS from 'common/SPELLS';
 
 class RaptureAnalysis extends RampAnalysis {
   static dependencies = {
@@ -16,9 +19,10 @@ class RaptureAnalysis extends RampAnalysis {
   }
 
   //on rapture cast (start of ramp)
-  onCooldownCast(event: CastEvent): void {
+  override onCooldownCast(event: CastEvent): void {
     this.currentRamp ??= {
       event: event,
+      atonements: 0,
       timeline: {
         start: event.timestamp,
         rampEvents: [],
@@ -37,7 +41,9 @@ class RaptureAnalysis extends RampAnalysis {
     this.constructRamp(event);
 
     if (this._finishedRamping) {
-      if (event.timestamp < this.currentRamp.timeline.rampEvents.at(-1)!.timestamp + 10000) {
+      const lastRampEvent = this.currentRamp.timeline.rampEvents.at(-1)!.timestamp;
+
+      if (event.timestamp < lastRampEvent + 10000) {
         this.currentRamp.timeline.damageEvents.push(event);
       } else {
         this.onRampEnd(event);
@@ -52,13 +58,25 @@ class RaptureAnalysis extends RampAnalysis {
         this._radianceCount += 1;
         return;
       }
-      console.log(event);
-      const rampHistory = this.getRamp;
+      this.currentRamp!.atonements = this.atonementModule.numAtonementsActive;
+      const rampHistory = this.getRamp(event.timestamp - this.currentRamp!.event.timestamp);
       rampHistory.push(event);
 
       this.currentRamp!.timeline.rampEvents = rampHistory;
       this._finishedRamping = true;
     }
+  }
+
+  override description(): ReactNode {
+    return (
+      <>
+        Start the <SpellLink spell={TALENTS_PRIEST.RAPTURE_TALENT} /> ramp by using the free{' '}
+        <SpellLink icon={false} spell={SPELLS.POWER_WORD_SHIELD} /> casts, then build up{' '}
+        <strong>7-9</strong> atonements with <SpellLink spell={TALENTS_PRIEST.RENEW_TALENT} /> or{' '}
+        <SpellLink spell={SPELLS.FLASH_HEAL} />, and finish with two{' '}
+        <SpellLink spell={TALENTS_PRIEST.POWER_WORD_RADIANCE_TALENT} /> casts.
+      </>
+    );
   }
 }
 
