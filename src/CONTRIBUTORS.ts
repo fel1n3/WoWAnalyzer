@@ -2533,3 +2533,26 @@ export const Rzial: Contributor = {
   nickname: 'Rzial',
   github: 'Rzial',
 };
+
+export const Yellot: Contributor = {
+  nickname: 'Yellot',
+  github: 'Mcheung7272',
+  mains: [
+    {
+      name: 'Yellot',
+      spec: SPECS.MARKSMANSHIP_HUNTER,
+      link: 'https://prod.worldofwarcraft.blizzard.com/en-us/character/us/area-52/yellot',
+    },
+  ],
+};
+export const Kivlov: Contributor = {
+  nickname: 'Kivlov',
+  github: 'Kivlov',
+  mains: [
+    {
+      name: 'Percival',
+      spec: SPECS.SURVIVAL_HUNTER,
+      link: 'https://worldofwarcraft.blizzard.com/en-us/character/us/firetree/percival',
+    },
+  ],
+};

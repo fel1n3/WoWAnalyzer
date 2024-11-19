@@ -82,6 +82,16 @@ class Abilities extends CoreAbilities {
           recommendedEfficiency: 0.95,
         },
       },
+      {
+        spell: SPELLS.WAILING_ARROW_DAMAGE.id,
+        enabled: combatant.hasTalent(TALENTS.WAILING_ARROW_TALENT),
+        category: SPELL_CATEGORY.ROTATIONAL,
+      },
+      {
+        spell: SPELLS.WAILING_ARROW_DAMAGE_FOCUS.id,
+        enabled: combatant.hasTalent(TALENTS.WAILING_ARROW_TALENT),
+        category: SPELL_CATEGORY.ROTATIONAL,
+      },
       //endregion
 
       //region Talents
@@ -89,14 +99,6 @@ class Abilities extends CoreAbilities {
         spell: TALENTS.WAILING_ARROW_TALENT.id,
         enabled: combatant.hasTalent(TALENTS.WAILING_ARROW_TALENT),
         category: SPELL_CATEGORY.ROTATIONAL,
-        gcd: {
-          base: 1500,
-        },
-        cooldown: 60,
-        castEfficiency: {
-          suggestion: true,
-          recommendedEfficiency: 0.9,
-        },
       },
       {
         spell: TALENTS.CHIMAERA_SHOT_TALENT.id,
@@ -121,10 +123,9 @@ class Abilities extends CoreAbilities {
         },
       },
       {
-        spell: TALENTS.SERPENT_STING_TALENT.id,
-        buffSpellId: TALENTS.SERPENT_STING_TALENT.id,
+        spell: SPELLS.SERPENT_STING_MM.id,
         category: SPELL_CATEGORY.ROTATIONAL,
-        enabled: combatant.hasTalent(TALENTS.SERPENT_STING_TALENT),
+        enabled: combatant.hasTalent(TALENTS.SERPENTSTALKERS_TRICKERY_TALENT),
         gcd: {
           base: 1500,
         },
@@ -165,16 +166,11 @@ class Abilities extends CoreAbilities {
         },
       },
       {
-        spell: TALENTS.STEEL_TRAP_TALENT.id,
+        spell: SPELLS.BLACK_ARROW_DAMAGE.id,
         category: SPELL_CATEGORY.ROTATIONAL,
-        cooldown: 30,
-        enabled: combatant.hasTalent(TALENTS.STEEL_TRAP_TALENT),
+        enabled: combatant.hasTalent(TALENTS.BLACK_ARROW_TALENT),
         gcd: {
           base: 1500,
-        },
-        castEfficiency: {
-          suggestion: true,
-          recommendedEfficiency: 0.85,
         },
       },
       //endregion
@@ -207,6 +203,15 @@ class Abilities extends CoreAbilities {
         category: SPELL_CATEGORY.DEFENSIVE,
         isDefensive: true,
         cooldown: 180,
+        gcd: {
+          static: 0,
+        },
+      },
+      {
+        spell: SPELLS.FORTITUDE_OF_THE_BEAR.id,
+        category: SPELL_CATEGORY.DEFENSIVE,
+        isDefensive: true,
+        cooldown: 120,
         gcd: {
           static: 0,
         },

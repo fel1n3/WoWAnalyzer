@@ -415,12 +415,14 @@ const spells = {
     name: 'Words of the Pious',
     icon: 'ability_priest_clarityofwill',
   },
-  ENTROPIC_RIFT_DAMAGE_DISC: {
+
+  //Voidweaver
+  ENTROPIC_RIFT_DAMAGE: {
     id: 447448,
     name: 'Entropic Rift',
     icon: 'inv_ability_voidweaverpriest_entropicrift',
   },
-  COLLAPSING_VOID_DAMAGE_DISC: {
+  COLLAPSING_VOID_DAMAGE: {
     id: 448405,
     name: 'Collapsing Void',
     icon: 'inv_cosmicvoid_groundsate',
@@ -963,6 +965,36 @@ const spells = {
     id: 199486,
     name: 'Psychich Link',
     icon: 'ability_priest_psychiclink',
+  },
+
+  //Shadow Archon
+  SHADOW_PRIEST_ARCHON_RESONANT_ENERGY_DEBUFF: {
+    id: 453850,
+    name: 'Resonant Energy',
+    icon: 'ability_priest_halo',
+  },
+
+  SHADOW_PRIEST_ARCHON_SUSTAINED_POTENCY_BUFF: {
+    id: 454002,
+    name: 'Sustained Potency',
+    icon: 'ability_priest_ascension',
+  },
+
+  //Shadow Voidweaver
+  SHADOW_PRIEST_VOIDWEAVER_VOID_BLAST: {
+    id: 450983,
+    name: 'Void Blast',
+    icon: 'inv_cosmicvoid_missile',
+  },
+  SHADOW_PRIEST_VOIDWEAVER_ENTROPIC_RIFT_BUFF: {
+    id: 450193,
+    name: 'Entropic Rift',
+    icon: 'inv_ability_voidweaverpriest_entropicrift',
+  },
+  SHADOW_PRIEST_VOIDWEAVER_VOIDWRAITH_CAST: {
+    id: 451235,
+    name: 'Voidwraith',
+    icon: 'warlock_curse_shadow',
   },
 
   //Shadow Tier

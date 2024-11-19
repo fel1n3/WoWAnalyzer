@@ -18,6 +18,10 @@ class WailingArrow extends Analyzer {
       return;
     }
     this.addEventListener(
+      Events.damage.by(SELECTED_PLAYER).spell(SPELLS.WAILING_ARROW_DAMAGE_FOCUS),
+      this.onWailingDamage,
+    );
+    this.addEventListener(
       Events.damage.by(SELECTED_PLAYER).spell(SPELLS.WAILING_ARROW_DAMAGE),
       this.onWailingDamage,
     );

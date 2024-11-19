@@ -35,8 +35,8 @@ class KillShot extends ExecuteHelper {
 
   constructor(options: Options) {
     super(options);
-    this.active =
-      this.selectedCombatant.hasTalent(TALENTS.KILL_SHOT_SHARED_TALENT) ||
+    this.active = !this.selectedCombatant.hasTalent(TALENTS.BLACK_ARROW_TALENT);
+    this.selectedCombatant.hasTalent(TALENTS.KILL_SHOT_SHARED_TALENT) ||
       this.selectedCombatant.hasTalent(TALENTS.KILL_SHOT_SURVIVAL_TALENT);
 
     const ctor = this.constructor as typeof ExecuteHelper;
